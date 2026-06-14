@@ -8,6 +8,14 @@
   <meta name="keywords" content="boxe Portet-sur-Garonne, salle de boxe Toulouse, muay thaï, MMA, kick boxing, cross training, Boxing Center, club de boxe 31120" />
   <link rel="canonical" href="https://boxingcenterportet.fr/" />
   <meta name="theme-color" content="#06080d" />
+  <script>
+    (function () {
+      try {
+        if (sessionStorage.getItem("bcp-intro-done") === "1") return;
+      } catch (e) {}
+      location.replace("/intro/");
+    })();
+  </script>
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />

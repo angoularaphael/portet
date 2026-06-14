@@ -15,7 +15,7 @@ export function initEnterGate() {
   try {
     entered = sessionStorage.getItem(KEY) === "1";
     introDone =
-      sessionStorage.getItem(INTRO_KEY) === "1" || localStorage.getItem(INTRO_KEY) === "1";
+      sessionStorage.getItem(INTRO_KEY) === "1";
   } catch {}
 
   if (entered || introDone) {
