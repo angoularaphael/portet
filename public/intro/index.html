@@ -127,6 +127,9 @@
         ];
 
         function loadScript(url) {
+          if (typeof url !== "string" || !url) {
+            return Promise.reject(new Error("invalid script url"));
+          }
           return new Promise(function (resolve, reject) {
             var script = document.createElement("script");
             script.src = url;
@@ -140,6 +143,7 @@
         }
 
         function loadGsap(index) {
+          if (typeof index !== "number" || index < 0 || isNaN(index)) index = 0;
           if (typeof gsap !== "undefined") return Promise.resolve(true);
           if (index >= GSAP_CDNS.length) return Promise.resolve(false);
           return loadScript(GSAP_CDNS[index])
@@ -759,7 +763,7 @@
         });
 
         function startApp() {
-          loadGsap()
+          loadGsap(0)
             .then(function (ok) {
               if (!ok) {
                 console.warn("[intro] GSAP CDN inaccessible — repli RAF activé.");
