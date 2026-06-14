@@ -1,7 +1,16 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/activites", "destination": "/activites/index.html" },
+    { "source": "/salles", "destination": "/salles/index.html" },
+    { "source": "/coachs", "destination": "/coachs/index.html" },
+    { "source": "/plannings", "destination": "/plannings/index.html" },
+    { "source": "/tarifs", "destination": "/tarifs/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
     { "source": "/intro", "destination": "/intro/index.html" }
   ]
 }
