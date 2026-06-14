@@ -6,7 +6,12 @@ export function maybeRedirectToIntro(): boolean {
   if (path !== "/" && path !== "") return false;
 
   try {
-    if (localStorage.getItem(INTRO_DONE) === "1") return false;
+    if (
+      localStorage.getItem(INTRO_DONE) === "1" ||
+      sessionStorage.getItem(INTRO_DONE) === "1"
+    ) {
+      return false;
+    }
   } catch {
     return false;
   }
