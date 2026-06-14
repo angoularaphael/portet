@@ -33,6 +33,11 @@
         pointer-events: none;
       }
 
+      #stage.stage--ready #canvas {
+        opacity: 0;
+        visibility: hidden;
+      }
+
       .gloves {
         position: absolute;
         inset: 0;
@@ -185,10 +190,6 @@
           bootError.textContent = message;
         }
 
-        function isFileProtocol() {
-          return window.location.protocol === "file:";
-        }
-
         var ASSETS = {
           gloveRightPng: "/intro/glove-right.png",
           gloveRightSvg: "/intro/glove-right.svg",
@@ -335,7 +336,6 @@
             (leftGlove && leftGlove.offsetWidth) ||
             (rightGlove && rightGlove.offsetWidth) ||
             Math.min(width * 0.82, 720);
-          // transformOrigin 78% / 22% → poings à ~28% du centre du visuel
           return Math.max(gloveW * 0.3, Math.min(width * 0.38, 340));
         }
 
@@ -472,12 +472,7 @@
           clearEnterFallback();
           enterFallbackTimer = window.setTimeout(function () {
             console.warn("[intro] Délai dépassé — affichage du bouton (repli).");
-            if (!logoRevealStarted) {
-              logoRevealStarted = true;
-              logoOverlay.style.visibility = "visible";
-              logoOverlay.style.opacity = "1";
-              logoOverlay.style.pointerEvents = "none";
-            }
+            revealLogo();
             showEnterButton();
           }, ms);
         }
@@ -485,6 +480,8 @@
         function showEnterButton() {
           stage.classList.add("stage--ready");
           animationPhase = "done";
+          particles = [];
+          ctx.clearRect(0, 0, width, height);
           canvas.style.pointerEvents = "none";
           logoOverlay.style.pointerEvents = "none";
           enterBtn.classList.add("visible");
@@ -497,6 +494,11 @@
         function revealLogo() {
           if (logoRevealStarted) return;
           logoRevealStarted = true;
+          particles = particles.filter(function (p) {
+            return p.phase !== "text";
+          });
+          ctx.clearRect(0, 0, width, height);
+          animationPhase = "revealing";
           logoOverlay.style.visibility = "visible";
           logoOverlay.style.pointerEvents = "none";
           if (typeof gsap !== "undefined") {
@@ -504,27 +506,21 @@
               opacity: 1,
               duration: 0.9,
               ease: "power2.out",
-              onComplete: function () {
-                particles = particles.filter(function (p) {
-                  return p.phase !== "text";
-                });
-                showEnterButton();
-              },
+              onComplete: showEnterButton,
             });
           } else {
             logoOverlay.style.transition = "opacity 0.9s ease-out";
             logoOverlay.style.opacity = "1";
-            setTimeout(function () {
-              particles = particles.filter(function (p) {
-                return p.phase !== "text";
-              });
-              showEnterButton();
-            }, 900);
+            setTimeout(showEnterButton, 900);
           }
         }
 
         function drawParticles() {
           ctx.clearRect(0, 0, width, height);
+          if (logoRevealStarted) {
+            requestAnimationFrame(drawParticles);
+            return;
+          }
           for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
             if (p.phase === "spark") {
