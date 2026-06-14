@@ -107,12 +107,12 @@
       <canvas id="canvas" aria-hidden="true"></canvas>
       <div class="gloves">
         <!-- glove-right : poings vers la droite → entre depuis la gauche -->
-        <img id="glove-left" class="glove" src="/intro/glove-right.svg" alt="" draggable="false" />
+        <img id="glove-left" class="glove" src="/intro/glove-right.png" alt="" draggable="false" />
         <!-- glove-left : poings vers la gauche → entre depuis la droite -->
-        <img id="glove-right" class="glove" src="/intro/glove-left.svg" alt="" draggable="false" />
+        <img id="glove-right" class="glove" src="/intro/glove-left.png" alt="" draggable="false" />
       </div>
       <div id="logo-overlay">
-        <img id="logo-img" src="/intro/logo-boxing-center.svg" alt="Boxing Center" />
+        <img id="logo-img" src="/intro/logo-boxing-center.png" alt="Boxing Center" />
       </div>
       <button id="enter-btn" type="button">Entrer dans l'arène</button>
       <div id="boot-error" hidden style="position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:2rem;background:rgba(0,0,0,0.92);color:#f5f5f2;font-family:system-ui,sans-serif;text-align:center;line-height:1.5"></div>
@@ -192,8 +192,8 @@
 
         function goToSite() {
           try {
-            localStorage.setItem("bcp-intro-done", "1");
             sessionStorage.setItem("bcp-intro-done", "1");
+            localStorage.setItem("bcp-intro-done", "1");
             sessionStorage.setItem("bcp-entered", "1");
           } catch (e) {}
           window.location.href = "/";
