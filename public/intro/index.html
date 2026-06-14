@@ -55,23 +55,21 @@
 
       #logo-overlay {
         position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
+        inset: 0;
         z-index: 30;
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
       }
 
       #logo-overlay img {
-        display: block;
         width: min(88vw, 720px);
         height: auto;
         object-fit: contain;
-        pointer-events: none;
-        filter: drop-shadow(0 0 24px rgba(245, 245, 242, 0.35));
+        filter: drop-shadow(0 0 24px rgba(245, 245, 242, 0.12));
       }
 
       #enter-btn {
@@ -79,7 +77,7 @@
         bottom: 3rem;
         left: 50%;
         transform: translateX(-50%);
-        z-index: 100;
+        z-index: 40;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
@@ -114,7 +112,7 @@
         <img id="glove-right" class="glove" src="/intro/glove-left.png" alt="" draggable="false" />
       </div>
       <div id="logo-overlay">
-        <img id="logo-img" src="/intro/logo-boxing-center-white.png" alt="Boxing Center" />
+        <img id="logo-img" src="/intro/logo-boxing-center.png" alt="Boxing Center" />
       </div>
       <button id="enter-btn" type="button">Entrer dans l'arène</button>
       <div id="boot-error" hidden style="position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:2rem;background:rgba(0,0,0,0.92);color:#f5f5f2;font-family:system-ui,sans-serif;text-align:center;line-height:1.5"></div>
@@ -129,9 +127,6 @@
         ];
 
         function loadScript(url) {
-          if (typeof url !== "string" || !url) {
-            return Promise.reject(new Error("invalid script url"));
-          }
           return new Promise(function (resolve, reject) {
             var script = document.createElement("script");
             script.src = url;
@@ -188,26 +183,13 @@
           gloveRightSvg: "/intro/glove-right.svg",
           gloveLeftPng: "/intro/glove-left.png",
           gloveLeftSvg: "/intro/glove-left.svg",
-          logoPng: "/intro/logo-boxing-center-white.png",
+          logoPng: "/intro/logo-boxing-center.png",
           logoSvg: "/intro/logo-boxing-center.svg",
         };
-
-        function finalizeIntroUI() {
-          animationPhase = "done";
-          particles = particles.filter(function (p) {
-            return p.phase !== "text" && p.phase !== "spark" && p.phase !== "glitter";
-          });
-          canvas.style.opacity = "0";
-          canvas.style.visibility = "hidden";
-          enterBtn.classList.add("visible");
-          enterBtn.style.pointerEvents = "auto";
-          enterBtn.onclick = goToSite;
-        }
 
         function goToSite() {
           try {
             sessionStorage.setItem("bcp-intro-done", "1");
-            localStorage.setItem("bcp-intro-done", "1");
             sessionStorage.setItem("bcp-entered", "1");
           } catch (e) {}
           window.location.href = "/";
@@ -464,26 +446,36 @@
         function revealLogo() {
           if (logoRevealStarted) return;
           logoRevealStarted = true;
-          particles = particles.filter(function (p) {
-            return p.phase !== "text";
-          });
           logoOverlay.style.visibility = "visible";
           if (typeof gsap !== "undefined") {
             gsap.to(logoOverlay, {
               opacity: 1,
               duration: 0.9,
               ease: "power2.out",
-              onComplete: finalizeIntroUI,
+              onComplete: function () {
+                particles = particles.filter(function (p) {
+                  return p.phase !== "text";
+                });
+                animationPhase = "done";
+                enterBtn.classList.add("visible");
+                enterBtn.onclick = goToSite;
+              },
             });
           } else {
             logoOverlay.style.transition = "opacity 0.9s ease-out";
             logoOverlay.style.opacity = "1";
-            setTimeout(finalizeIntroUI, 900);
+            setTimeout(function () {
+              particles = particles.filter(function (p) {
+                return p.phase !== "text";
+              });
+              animationPhase = "done";
+              enterBtn.classList.add("visible");
+              enterBtn.onclick = goToSite;
+            }, 900);
           }
         }
 
         function drawParticles() {
-          if (animationPhase === "done") return;
           ctx.clearRect(0, 0, width, height);
           for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
