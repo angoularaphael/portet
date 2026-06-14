@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Boxing Center Portet — Intro</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+
+      #stage {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        overflow: hidden;
+      }
+
+      #canvas {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+      }
+
+      .gloves {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        pointer-events: none;
+      }
+
+      .glove {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(82vw, 720px);
+        max-width: none;
+        user-select: none;
+        will-change: transform, opacity;
+        opacity: 0;
+        visibility: hidden;
+        transform: translate(-50%, -50%);
+      }
+
+      #logo-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      #logo-overlay img {
+        width: min(88vw, 720px);
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 0 24px rgba(245, 245, 242, 0.12));
+      }
+
+      #enter-btn {
+        position: absolute;
+        bottom: 3rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 40;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        border: 1px solid rgba(245, 245, 242, 0.3);
+        background: rgba(14, 26, 51, 0.85);
+        color: #f5f5f2;
+        font-family: system-ui, sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        padding: 0.75rem 2rem;
+        border-radius: 2px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+      }
+
+      #enter-btn.visible {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="canvas" aria-hidden="true"></canvas>
+      <div class="gloves">
+        <!-- glove-right : poings vers la droite → entre depuis la gauche -->
+        <img id="glove-left" class="glove" src="/intro/glove-right.svg" alt="" draggable="false" />
+        <!-- glove-left : poings vers la gauche → entre depuis la droite -->
+        <img id="glove-right" class="glove" src="/intro/glove-left.svg" alt="" draggable="false" />
+      </div>
+      <div id="logo-overlay">
+        <img id="logo-img" src="/intro/logo-boxing-center.svg" alt="Boxing Center" />
+      </div>
+      <button id="enter-btn" type="button">Entrer dans l'arène</button>
+      <div id="boot-error" hidden style="position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:2rem;background:rgba(0,0,0,0.92);color:#f5f5f2;font-family:system-ui,sans-serif;text-align:center;line-height:1.5"></div>
+    </div>
+
+    <script>
+      (function () {
+        var GSAP_CDNS = [
+          "https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js",
+          "https://unpkg.com/gsap@3.13.0/dist/gsap.min.js",
+          "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js",
+        ];
+
+        function loadScript(url) {
+          return new Promise(function (resolve, reject) {
+            var script = document.createElement("script");
+            script.src = url;
+            script.async = false;
+            script.onload = function () {
+              resolve(typeof gsap !== "undefined");
+            };
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+
+        function loadGsap(index) {
+          if (typeof gsap !== "undefined") return Promise.resolve(true);
+          if (index >= GSAP_CDNS.length) return Promise.resolve(false);
+          return loadScript(GSAP_CDNS[index])
+            .then(function (ok) {
+              return ok ? true : loadGsap(index + 1);
+            })
+            .catch(function () {
+              return loadGsap(index + 1);
+            });
+        }
+
+        function runAnimation() {
+        const NAVY = "#0E1A33";
+        const WHITE = "#F5F5F2";
+        const GOLD = "#C9A227";
+        const BLUE_SPARK = "#4A7CFF";
+
+        const stage = document.getElementById("stage");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas ? canvas.getContext("2d") : null;
+        const leftGlove = document.getElementById("glove-left");
+        const rightGlove = document.getElementById("glove-right");
+        const logoOverlay = document.getElementById("logo-overlay");
+        const enterBtn = document.getElementById("enter-btn");
+        const bootError = document.getElementById("boot-error");
+
+        function showBootError(message) {
+          console.error("[intro]", message);
+          if (!bootError) return;
+          bootError.hidden = false;
+          bootError.textContent = message;
+        }
+
+        function isFileProtocol() {
+          return window.location.protocol === "file:";
+        }
+
+        var ASSETS = {
+          gloveRightPng: "/intro/glove-right.png",
+          gloveRightSvg: "/intro/glove-right.svg",
+          gloveLeftPng: "/intro/glove-left.png",
+          gloveLeftSvg: "/intro/glove-left.svg",
+          logoPng: "/intro/logo-boxing-center.png",
+          logoSvg: "/intro/logo-boxing-center.svg",
+        };
+
+        function goToSite() {
+          try {
+            sessionStorage.setItem("bcp-intro-done", "1");
+          } catch (e) {}
+          window.location.href = "/";
+        }
+
+        function ensureAssetPath(path, fallback) {
+          if (typeof path === "string" && path.length > 0 && path !== "undefined") {
+            return path;
+          }
+          return fallback;
+        }
+
+        function setImgSrc(imgEl, path, fallback) {
+          if (!imgEl) return;
+          var safe = ensureAssetPath(path, ensureAssetPath(fallback, ASSETS.logoSvg));
+          if (imgEl.getAttribute("src") !== safe) {
+            imgEl.setAttribute("src", safe);
+          }
+        }
+
+        function loadImage(imgEl, primary, fallback) {
+          var wanted = ensureAssetPath(primary, fallback);
+          var backup = ensureAssetPath(fallback, primary);
+          return new Promise(function (resolve) {
+            if (!imgEl) {
+              resolve(wanted);
+              return;
+            }
+            var settled = false;
+            function finish(path) {
+              if (settled) return;
+              settled = true;
+              var safe = ensureAssetPath(path, backup);
+              setImgSrc(imgEl, safe, backup);
+              resolve(safe);
+            }
+            imgEl.onload = function () {
+              finish(imgEl.currentSrc || imgEl.src || wanted);
+            };
+            imgEl.onerror = function () {
+              finish(backup);
+            };
+            setImgSrc(imgEl, wanted, backup);
+            if (imgEl.complete && imgEl.naturalWidth > 0) {
+              finish(imgEl.currentSrc || imgEl.src || wanted);
+            }
+            setTimeout(function () {
+              finish(imgEl.currentSrc || imgEl.src || wanted);
+            }, 4000);
+          });
+        }
+
+        function loadGlove(imgEl, pngPath, svgPath) {
+          var png = ensureAssetPath(pngPath, svgPath);
+          var svg = ensureAssetPath(svgPath, png);
+          return loadImage(imgEl, png, svg).then(function () {
+            if (!imgEl || !imgEl.naturalWidth) return;
+            if (/\.svg($|\?)/i.test(imgEl.src)) return;
+            try {
+              var processed = processGloveImage(imgEl);
+              setImgSrc(imgEl, processed, png);
+            } catch (err) {
+              console.warn("[intro] Gant non traité:", err);
+            }
+          });
+        }
+
+        if (!stage || !canvas || !ctx || !leftGlove || !rightGlove || !logoOverlay || !enterBtn) {
+          showBootError("Éléments DOM manquants — rechargez la page.");
+          return;
+        }
+
+        let width = 0;
+        let height = 0;
+        let impactX = 0;
+        let impactY = 0;
+        let animationPhase = "idle";
+        let particles = [];
+        let logoPoints = [];
+        let logoRevealStarted = false;
+        let logoLayout = { x: 0, y: 0, w: 0, h: 0 };
+
+        const logoImg = document.getElementById("logo-img");
+        const logoSource = new Image();
+        let logoAssetPath = ASSETS.logoSvg;
+
+        /** Retire le fond noir/gris des PNG de gants (frange grise autour du cuir). */
+        function processGloveImage(img) {
+          try {
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            if (!w || !h) return img.src;
+            if (/\.svg($|\?)/i.test(img.src)) return img.src;
+
+            const off = document.createElement("canvas");
+            off.width = w;
+            off.height = h;
+            const offCtx = off.getContext("2d");
+            if (!offCtx) return img.src;
+            offCtx.drawImage(img, 0, 0);
+            const data = offCtx.getImageData(0, 0, w, h);
+
+            for (let i = 0; i < data.data.length; i += 4) {
+              const r = data.data[i];
+              const g = data.data[i + 1];
+              const b = data.data[i + 2];
+              const lum = (r + g + b) / 3;
+              const sat = Math.max(r, g, b) - Math.min(r, g, b);
+
+              if (lum < 22) {
+                data.data[i + 3] = 0;
+              } else if (sat < 40 && lum < 100) {
+                data.data[i + 3] = 0;
+              } else if (sat < 55 && lum < 55) {
+                data.data[i + 3] = Math.max(0, data.data[i + 3] - 180);
+              }
+            }
+
+            offCtx.putImageData(data, 0, 0);
+            return off.toDataURL("image/png");
+          } catch (err) {
+            console.warn("[intro] Traitement gant ignoré:", err);
+            return img.src;
+          }
+        }
+
+        /** Distance centre → poing pour aligner les knuckles face à face sans emboîtement. */
+        function computeMeetOffset() {
+          var gloveW =
+            (leftGlove && leftGlove.offsetWidth) ||
+            (rightGlove && rightGlove.offsetWidth) ||
+            Math.min(width * 0.82, 720);
+          // transformOrigin 78% / 22% → poings à ~28% du centre du visuel
+          return Math.max(gloveW * 0.3, Math.min(width * 0.38, 340));
+        }
+
+        function resize() {
+          width = window.innerWidth;
+          height = window.innerHeight;
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = width * dpr;
+          canvas.height = height * dpr;
+          canvas.style.width = width + "px";
+          canvas.style.height = height + "px";
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          impactX = width / 2;
+          impactY = height / 2;
+        }
+
+        function computeLogoLayout(imgW, imgH) {
+          const maxW = Math.min(width * 0.88, 720);
+          const scale = maxW / imgW;
+          const w = imgW * scale;
+          const h = imgH * scale;
+          return {
+            x: (width - w) / 2,
+            y: (height - h) / 2,
+            w,
+            h,
+          };
+        }
+
+        function sampleLogoPixels(img) {
+          logoLayout = computeLogoLayout(img.naturalWidth, img.naturalHeight);
+          const off = document.createElement("canvas");
+          off.width = width;
+          off.height = height;
+          const offCtx = off.getContext("2d");
+          offCtx.drawImage(img, logoLayout.x, logoLayout.y, logoLayout.w, logoLayout.h);
+          const imageData = offCtx.getImageData(0, 0, width, height);
+          const points = [];
+          const step = 3;
+          for (let y = 0; y < height; y += step) {
+            for (let x = 0; x < width; x += step) {
+              const i = (y * width + x) * 4;
+              const r = imageData.data[i];
+              const g = imageData.data[i + 1];
+              const b = imageData.data[i + 2];
+              const a = imageData.data[i + 3];
+              if (a < 80) continue;
+              if (r < 12 && g < 12 && b < 12) continue;
+              points.push({ x, y, color: "rgb(" + r + "," + g + "," + b + ")" });
+            }
+          }
+          logoPoints = points;
+        }
+
+        function spawnSparks(count) {
+          for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 5 + Math.random() * 14;
+            particles.push({
+              x: impactX + (Math.random() - 0.5) * 18,
+              y: impactY + (Math.random() - 0.5) * 18,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              targetX: impactX,
+              targetY: impactY,
+              size: 1.5 + Math.random() * 3.5,
+              color: Math.random() > 0.45 ? GOLD : Math.random() > 0.5 ? WHITE : BLUE_SPARK,
+              alpha: 1,
+              phase: "spark",
+              settled: false,
+            });
+          }
+        }
+
+        function spawnGlitter(count) {
+          for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 8 + Math.random() * 22;
+            particles.push({
+              x: impactX + (Math.random() - 0.5) * 30,
+              y: impactY + (Math.random() - 0.5) * 30,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              targetX: impactX,
+              targetY: impactY,
+              size: 2 + Math.random() * 5,
+              color: Math.random() > 0.35 ? WHITE : Math.random() > 0.5 ? BLUE_SPARK : NAVY,
+              alpha: 1,
+              phase: "glitter",
+              settled: false,
+            });
+          }
+        }
+
+        function spawnLogoParticles() {
+          if (!logoPoints.length && logoSource.complete) {
+            sampleLogoPixels(logoSource);
+          }
+          const shuffled = logoPoints.slice().sort(function () {
+            return Math.random() - 0.5;
+          });
+          shuffled.forEach(function (point) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 60 + Math.random() * Math.min(width, height) * 0.42;
+            particles.push({
+              x: impactX + Math.cos(angle) * radius,
+              y: impactY + Math.sin(angle) * radius,
+              vx: 0,
+              vy: 0,
+              targetX: point.x,
+              targetY: point.y,
+              size: 1.8 + Math.random() * 2.2,
+              color: point.color,
+              alpha: 0.25 + Math.random() * 0.55,
+              phase: "text",
+              settled: false,
+            });
+          });
+        }
+
+        function revealLogo() {
+          if (logoRevealStarted) return;
+          logoRevealStarted = true;
+          logoOverlay.style.visibility = "visible";
+          if (typeof gsap !== "undefined") {
+            gsap.to(logoOverlay, {
+              opacity: 1,
+              duration: 0.9,
+              ease: "power2.out",
+              onComplete: function () {
+                particles = particles.filter(function (p) {
+                  return p.phase !== "text";
+                });
+                animationPhase = "done";
+                enterBtn.classList.add("visible");
+                enterBtn.onclick = goToSite;
+              },
+            });
+          } else {
+            logoOverlay.style.transition = "opacity 0.9s ease-out";
+            logoOverlay.style.opacity = "1";
+            setTimeout(function () {
+              particles = particles.filter(function (p) {
+                return p.phase !== "text";
+              });
+              animationPhase = "done";
+              enterBtn.classList.add("visible");
+              enterBtn.onclick = goToSite;
+            }, 900);
+          }
+        }
+
+        function drawParticles() {
+          ctx.clearRect(0, 0, width, height);
+          for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            if (p.phase === "spark") {
+              p.x += p.vx;
+              p.y += p.vy;
+              p.vy += 0.38;
+              p.vx *= 0.97;
+              p.alpha -= 0.03;
+              if (p.alpha <= 0) {
+                particles.splice(i, 1);
+                continue;
+              }
+            } else if (p.phase === "glitter") {
+              p.x += p.vx;
+              p.y += p.vy;
+              p.vx *= 0.95;
+              p.vy *= 0.95;
+              p.alpha -= 0.014;
+              if (p.alpha <= 0) {
+                particles.splice(i, 1);
+                continue;
+              }
+            } else if (p.phase === "text") {
+              const dx = p.targetX - p.x;
+              const dy = p.targetY - p.y;
+              p.x += dx * 0.07;
+              p.y += dy * 0.07;
+              p.alpha = Math.min(1, p.alpha + 0.025);
+              if (Math.hypot(dx, dy) < 2.5) p.settled = true;
+            }
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            if (p.phase === "glitter") {
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = p.color;
+            }
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          if (animationPhase === "text") {
+            const textParticles = particles.filter(function (p) {
+              return p.phase === "text";
+            });
+            const settledRatio =
+              textParticles.length === 0
+                ? 0
+                : textParticles.filter(function (p) {
+                    return p.settled;
+                  }).length / textParticles.length;
+            if (settledRatio > 0.82) {
+              revealLogo();
+            }
+          }
+          requestAnimationFrame(drawParticles);
+        }
+
+        function startTimelineFallback() {
+          console.warn("[intro] GSAP indisponible — lecture via requestAnimationFrame.");
+          const meetOffset = computeMeetOffset();
+          const start = performance.now();
+          let phase = "enter";
+
+          leftGlove.style.visibility = "visible";
+          rightGlove.style.visibility = "visible";
+          leftGlove.style.transform =
+            "translate(-50%, -50%) translate(" + -width * 0.75 + "px, 0) rotate(10deg) scale(1.12)";
+          rightGlove.style.transform =
+            "translate(-50%, -50%) translate(" + width * 0.75 + "px, 0) rotate(-10deg) scale(1.12)";
+
+          function frame(now) {
+            const t = (now - start) / 1000;
+
+            if (phase === "enter") {
+              const p = Math.min(1, Math.max(0, t / 0.85));
+              const ease = p * p * p * p;
+              const lx = -width * 0.75 + (-meetOffset - -width * 0.75) * ease;
+              const rx = width * 0.75 + (meetOffset - width * 0.75) * ease;
+              leftGlove.style.opacity = String(Math.min(1, p * 1.4));
+              rightGlove.style.opacity = String(Math.min(1, p * 1.4));
+              leftGlove.style.transform =
+                "translate(-50%, -50%) translate(" + lx + "px, 0) rotate(" + (10 + 4 * ease) + "deg) scale(" + (1.12 + 0.03 * ease) + ")";
+              rightGlove.style.transform =
+                "translate(-50%, -50%) translate(" + rx + "px, 0) rotate(" + (-10 - 4 * ease) + "deg) scale(" + (1.12 + 0.03 * ease) + ")";
+              if (p >= 1) {
+                phase = "shake";
+                animationPhase = "sparks";
+                spawnSparks(140);
+                window.__shakeStart = now;
+              }
+            } else if (phase === "impact") {
+              phase = "shake";
+            } else if (phase === "shake") {
+              const p = Math.min(1, (now - window.__shakeStart) / 320);
+              const shake = Math.sin(p * Math.PI * 14) * (1 - p) * 14;
+              stage.style.transform = "translate(" + shake + "px, " + shake * 0.4 + "px)";
+              if (p >= 1) {
+                stage.style.transform = "";
+                phase = "fade";
+                window.__fadeStart = now;
+              }
+            } else if (phase === "fade") {
+              const p = Math.min(1, (now - window.__fadeStart) / 320);
+              leftGlove.style.opacity = String(1 - p);
+              rightGlove.style.opacity = String(1 - p);
+              if (p >= 1) {
+                phase = "glitter";
+                animationPhase = "glitter";
+                spawnGlitter(460);
+                window.__glitterStart = now;
+              }
+            } else if (phase === "glitter") {
+              if (now - window.__glitterStart > 1500) {
+                phase = "text";
+                animationPhase = "text";
+                particles = particles.filter(function (p) {
+                  return p.phase !== "glitter";
+                });
+                spawnLogoParticles();
+                window.__textStart = now;
+              }
+            } else if (phase === "text") {
+              if (now - window.__textStart > 4000) {
+                revealLogo();
+                return;
+              }
+            }
+
+            requestAnimationFrame(frame);
+          }
+
+          requestAnimationFrame(frame);
+        }
+
+        function startTimeline() {
+          if (logoSource.complete && logoSource.naturalWidth) {
+            try {
+              sampleLogoPixels(logoSource);
+            } catch (err) {
+              console.warn("[intro] Échantillonnage logo ignoré:", err);
+            }
+          }
+
+          const meetOffset = computeMeetOffset();
+
+          if (typeof gsap === "undefined") {
+            startTimelineFallback();
+            return;
+          }
+
+          try {
+          gsap.set(stage, { x: 0, y: 0 });
+          gsap.set(leftGlove, {
+            xPercent: -50,
+            yPercent: -50,
+            x: -width * 0.75,
+            y: 0,
+            rotation: 10,
+            scale: 1.12,
+            opacity: 0,
+            visibility: "hidden",
+            transformOrigin: "82% 50%",
+          });
+          gsap.set(rightGlove, {
+            xPercent: -50,
+            yPercent: -50,
+            x: width * 0.75,
+            y: 0,
+            rotation: -10,
+            scale: 1.12,
+            opacity: 0,
+            visibility: "hidden",
+            transformOrigin: "18% 50%",
+          });
+          gsap.set(logoOverlay, { opacity: 0, visibility: "hidden" });
+
+          const RUSH_DURATION = 0.85;
+
+          const tl = gsap.timeline({ delay: 0.2 });
+
+          tl.set([leftGlove, rightGlove], { visibility: "visible", opacity: 1 })
+            .to(leftGlove, {
+              x: -meetOffset,
+              y: 0,
+              rotation: 14,
+              scale: 1.15,
+              duration: RUSH_DURATION,
+              ease: "power4.in",
+            })
+            .to(
+              rightGlove,
+              {
+                x: meetOffset,
+                y: 0,
+                rotation: -14,
+                scale: 1.15,
+                duration: RUSH_DURATION,
+                ease: "power4.in",
+              },
+              "<",
+            )
+            .add(function () {
+              animationPhase = "sparks";
+              spawnSparks(140);
+            }, "-=0.03")
+            .to(stage, {
+              x: -14,
+              y: 6,
+              duration: 0.04,
+              yoyo: true,
+              repeat: 7,
+              ease: "power1.inOut",
+              onComplete: function () {
+                gsap.set(stage, { x: 0, y: 0 });
+              },
+            }, "<")
+            .to(leftGlove, { opacity: 0, scale: 1.28, duration: 0.32, ease: "power2.in" }, "-=0.1")
+            .to(rightGlove, { opacity: 0, scale: 1.28, duration: 0.32, ease: "power2.in" }, "<")
+            .add(function () {
+              animationPhase = "glitter";
+              spawnGlitter(460);
+            })
+            .to({}, { duration: 1.5 })
+            .add(function () {
+              animationPhase = "text";
+              particles = particles.filter(function (p) {
+                return p.phase !== "glitter";
+              });
+              spawnLogoParticles();
+            })
+            .to({}, { duration: 4 });
+          } catch (err) {
+            console.error("[intro] Erreur GSAP:", err);
+            startTimelineFallback();
+          }
+        }
+
+        function boot() {
+          try {
+            resize();
+            window.addEventListener("resize", resize);
+            requestAnimationFrame(drawParticles);
+
+            var assetsReady = Promise.all([
+              loadGlove(leftGlove, ASSETS.gloveRightPng, ASSETS.gloveRightSvg),
+              loadGlove(rightGlove, ASSETS.gloveLeftPng, ASSETS.gloveLeftSvg),
+              loadImage(logoSource, ASSETS.logoPng, ASSETS.logoSvg).then(function (path) {
+                logoAssetPath = ensureAssetPath(path, ASSETS.logoSvg);
+                setImgSrc(logoImg, logoAssetPath, ASSETS.logoSvg);
+              }),
+            ]);
+
+            var timelineReady = new Promise(function (resolve) {
+              setTimeout(resolve, 2500);
+            });
+
+            Promise.race([assetsReady, timelineReady])
+              .then(function () {
+                startTimeline();
+              })
+              .catch(function (err) {
+                console.error("[intro] Chargement assets:", err);
+                startTimeline();
+              });
+          } catch (err) {
+            console.error("[intro] Boot échoué:", err);
+            showBootError("Erreur au démarrage. Ouvrez la console (F12) pour le détail.");
+            startTimelineFallback();
+          }
+        }
+
+        boot();
+        }
+
+        window.addEventListener("error", function (event) {
+          console.error("[intro] Erreur globale:", event.error || event.message);
+        });
+
+        function startApp() {
+          loadGsap()
+            .then(function (ok) {
+              if (!ok) {
+                console.warn("[intro] GSAP CDN inaccessible — repli RAF activé.");
+              }
+              runAnimation();
+            })
+            .catch(function (err) {
+              console.error("[intro] Chargement GSAP:", err);
+              runAnimation();
+            });
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", startApp);
+        } else {
+          startApp();
+        }
+      })();
+    </script>
+  </body>
+</html>
