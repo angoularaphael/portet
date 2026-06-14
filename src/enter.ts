@@ -7,14 +7,23 @@ import { enableSound, resumeSound, prefMuted } from "./audio";
  * unless the user has muted.
  */
 const KEY = "bcp-entered";
+const INTRO_KEY = "bcp-intro-done";
 
 export function initEnterGate() {
   let entered = false;
+  let introDone = false;
   try {
     entered = sessionStorage.getItem(KEY) === "1";
+    introDone =
+      sessionStorage.getItem(INTRO_KEY) === "1" || localStorage.getItem(INTRO_KEY) === "1";
   } catch {}
 
-  if (entered) {
+  if (entered || introDone) {
+    if (introDone && !entered) {
+      try {
+        sessionStorage.setItem(KEY, "1");
+      } catch {}
+    }
     if (!prefMuted()) armGestureResume();
     return;
   }

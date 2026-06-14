@@ -2,6 +2,7 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { whoosh, soundOn } from "./audio";
+import { attachLazyVideo } from "./lazy-media";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -246,33 +247,42 @@ function initScrubVideo(lenis: Lenis | null) {
   if (!sec || !v) return;
 
   const touch = window.matchMedia("(pointer: coarse)").matches;
-  if (reduced || touch) {
-    v.loop = true;
-    v.muted = true;
-    v.autoplay = true;
-    v.play().catch(() => {});
-    return;
-  }
 
-  v.pause();
-  let dur = 0;
-  const setDur = () => (dur = v.duration || 0);
-  v.addEventListener("loadedmetadata", setDur);
-  setDur();
-
-  const update = () => {
-    const total = sec.offsetHeight - window.innerHeight;
-    const p = Math.min(1, Math.max(0, -sec.getBoundingClientRect().top / total));
-    sec.style.setProperty("--p", p.toFixed(3));
-    if (dur) {
-      try {
-        v.currentTime = p * (dur - 0.05);
-      } catch {}
+  const bind = () => {
+    if (reduced || touch) {
+      v.loop = true;
+      v.muted = true;
+      v.autoplay = true;
+      v.play().catch(() => {});
+      return;
     }
+
+    v.pause();
+    let dur = 0;
+    const setDur = () => (dur = v.duration || 0);
+    v.addEventListener("loadedmetadata", setDur);
+    setDur();
+
+    const update = () => {
+      const total = sec.offsetHeight - window.innerHeight;
+      const p = Math.min(1, Math.max(0, -sec.getBoundingClientRect().top / total));
+      sec.style.setProperty("--p", p.toFixed(3));
+      if (dur) {
+        try {
+          v.currentTime = p * (dur - 0.05);
+        } catch {}
+      }
+    };
+    if (lenis) lenis.on("scroll", update);
+    else window.addEventListener("scroll", update, { passive: true });
+    update();
   };
-  if (lenis) lenis.on("scroll", update);
-  else window.addEventListener("scroll", update, { passive: true });
-  update();
+
+  if (v.dataset.src) {
+    attachLazyVideo(v, bind, "480px");
+  } else {
+    bind();
+  }
 }
 
 function initMarquee() {

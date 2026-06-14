@@ -6,7 +6,7 @@ export function maybeRedirectToIntro(): boolean {
   if (path !== "/" && path !== "") return false;
 
   try {
-    if (sessionStorage.getItem(INTRO_DONE) === "1") return false;
+    if (localStorage.getItem(INTRO_DONE) === "1") return false;
   } catch {
     return false;
   }
@@ -17,6 +17,7 @@ export function maybeRedirectToIntro(): boolean {
 
 export function markIntroDoneAndEnterSite() {
   try {
+    localStorage.setItem(INTRO_DONE, "1");
     sessionStorage.setItem(INTRO_DONE, "1");
   } catch {}
   window.location.href = "/";

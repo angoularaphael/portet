@@ -45,7 +45,7 @@ function ensureAmbient() {
     ambient = new Audio("/sfx/ambient.mp3");
     ambient.loop = true;
     ambient.volume = 0;
-    ambient.preload = "auto";
+    ambient.preload = "none";
   }
   return ambient;
 }

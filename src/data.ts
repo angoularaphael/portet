@@ -54,6 +54,12 @@ export const NAV = [
 ];
 
 export type Discipline = { key: string; name: string; tag: string; desc: string; img: string };
+export type Tarif = { name: string; price: string; unit: string; note: string; feature: boolean };
+export type GalleryItem = { src: string; label: string; span: string };
+export type Clip = { src: string; label: string };
+export type Audience = { tag: string; title: string; desc: string };
+export type Champion = { name: string; role: string; initials: string };
+export type Value = { n: string; title: string; desc: string };
 
 export const DISCIPLINES: Discipline[] = [
   { key: "01", name: "Boxe Anglaise", tag: "Poings", desc: "Le noble art. Esquive, timing, jeu de jambes — la discipline qui forge le sang-froid avant le poing.", img: "/img/gym-14.jpg" },

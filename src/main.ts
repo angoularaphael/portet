@@ -2,19 +2,30 @@ import "./styles/main.css";
 import { maybeRedirectToIntro } from "./intro-redirect";
 import { mountLayout } from "./layout";
 import { initThemeSwitch } from "./theme";
-import { initScroll } from "./scroll";
 import { initFx } from "./fx";
 import { renderPage } from "./pages";
 import { initEnterGate } from "./enter";
-import { DISCIPLINES, TARIFS, GALLERY, CLIPS, AUDIENCES, CHAMPIONS, VALUES } from "./data";
+import { initLazyClipVideos } from "./lazy-media";
+import type { Discipline, Tarif, GalleryItem, Clip, Audience, Champion, Value } from "./data";
 
-function renderHomeGrids() {
+type HomeData = {
+  DISCIPLINES: Discipline[];
+  TARIFS: Tarif[];
+  GALLERY: GalleryItem[];
+  CLIPS: Clip[];
+  AUDIENCES: Audience[];
+  CHAMPIONS: Champion[];
+  VALUES: Value[];
+};
+
+function renderHomeGrids(data: HomeData) {
+  const { DISCIPLINES, TARIFS, GALLERY, CLIPS, AUDIENCES, CHAMPIONS, VALUES } = data;
   const reel = document.getElementById("reel-track");
   if (reel) {
     reel.innerHTML = DISCIPLINES.map(
       (d) => `
       <article class="reel__frame">
-        <img src="${d.img}" alt="${d.name} — Boxing Center Portet" loading="lazy" />
+        <img src="${d.img}" alt="${d.name} — Boxing Center Portet" loading="lazy" decoding="async" />
         <span class="reel__num">${d.key} / 08</span>
         <span class="reel__tag">${d.tag}</span>
         <div class="reel__body">
@@ -90,41 +101,30 @@ function renderHomeGrids() {
     ).join("");
   }
 
-  renderMedia();
+  renderMedia(GALLERY, CLIPS);
 }
 
-function renderMedia() {
+function renderMedia(GALLERY: HomeData["GALLERY"], CLIPS: HomeData["CLIPS"]) {
   const gal = document.getElementById("gallery");
   if (gal) {
     gal.innerHTML = GALLERY.map((g) => {
       const cls = g.span === "wide" ? "shot--wide" : g.span === "tall" ? "shot--tall" : "";
-      return `<figure class="shot ${cls}"><img src="${g.src}" alt="${g.label}" loading="lazy" />
+      return `<figure class="shot ${cls}"><img src="${g.src}" alt="${g.label}" loading="lazy" decoding="async" />
         <figcaption class="shot__label">${g.label}</figcaption></figure>`;
     }).join("");
   }
   const clips = document.getElementById("clips");
   if (clips) {
     clips.innerHTML = CLIPS.map(
-      (c) => `<div class="clip"><video src="${c.src}" autoplay muted loop playsinline preload="metadata"></video>
+      (c) => `<div class="clip"><video data-src="${c.src}" muted loop playsinline preload="none"></video>
         <span class="clip__label">${c.label}</span></div>`
     ).join("");
+    initLazyClipVideos(clips);
   }
 }
 
-function boot() {
-  if (maybeRedirectToIntro()) return;
-  initEnterGate();
-  mountLayout();
-  initThemeSwitch();
-
-  const page = document.body.dataset.page;
-  if (page === "home") renderHomeGrids();
-  else renderPage(page);
-
-  initScroll();
-  initFx();
-
-  if (page === "home") {
+function scheduleHomeWebGL() {
+  const start = () => {
     const host = document.getElementById("hero-canvas");
     if (host && "WebGLRenderingContext" in window) {
       import("./three/hero")
@@ -135,7 +135,49 @@ function boot() {
     if (showcase && "WebGLRenderingContext" in window) {
       import("./three/showcase").then((m) => m.initShowcaseGL(showcase)).catch(() => {});
     }
+  };
+
+  const run = () => {
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(start, { timeout: 2200 });
+    } else {
+      window.setTimeout(start, 600);
+    }
+  };
+
+  if (document.documentElement.classList.contains("gated")) {
+    const obs = new MutationObserver(() => {
+      if (!document.documentElement.classList.contains("gated")) {
+        obs.disconnect();
+        run();
+      }
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  } else {
+    run();
   }
+}
+
+async function boot() {
+  if (maybeRedirectToIntro()) return;
+  initEnterGate();
+  mountLayout();
+  initThemeSwitch();
+
+  const page = document.body.dataset.page;
+  if (page === "home") {
+    const data = await import("./data");
+    renderHomeGrids(data);
+    const { initScroll } = await import("./scroll");
+    initScroll();
+    scheduleHomeWebGL();
+  } else {
+    renderPage(page);
+    const { initScrollLite } = await import("./scroll-lite");
+    initScrollLite();
+  }
+
+  initFx();
 }
 
 if (document.readyState === "loading") {
