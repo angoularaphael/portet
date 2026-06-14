@@ -40,6 +40,12 @@
         pointer-events: none;
       }
 
+      #stage.stage--ready .gloves,
+      #stage.stage--ready #canvas,
+      #stage.stage--ready #logo-overlay {
+        pointer-events: none;
+      }
+
       .glove {
         position: absolute;
         top: 50%;
@@ -51,6 +57,7 @@
         opacity: 0;
         visibility: hidden;
         transform: translate(-50%, -50%);
+        pointer-events: none;
       }
 
       #logo-overlay {
@@ -99,6 +106,7 @@
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
+        z-index: 50;
       }
     </style>
   </head>
@@ -274,6 +282,7 @@
         let particles = [];
         let logoPoints = [];
         let logoRevealStarted = false;
+        let enterFallbackTimer = null;
         let logoLayout = { x: 0, y: 0, w: 0, h: 0 };
 
         const logoImg = document.getElementById("logo-img");
@@ -425,6 +434,11 @@
           if (!logoPoints.length && logoSource.complete) {
             sampleLogoPixels(logoSource);
           }
+          if (!logoPoints.length) {
+            console.warn("[intro] Aucun pixel logo — passage direct au bouton.");
+            revealLogo();
+            return;
+          }
           const shuffled = logoPoints.slice().sort(function () {
             return Math.random() - 0.5;
           });
@@ -447,10 +461,44 @@
           });
         }
 
+        function clearEnterFallback() {
+          if (enterFallbackTimer !== null) {
+            clearTimeout(enterFallbackTimer);
+            enterFallbackTimer = null;
+          }
+        }
+
+        function scheduleEnterFallback(ms) {
+          clearEnterFallback();
+          enterFallbackTimer = window.setTimeout(function () {
+            console.warn("[intro] Délai dépassé — affichage du bouton (repli).");
+            if (!logoRevealStarted) {
+              logoRevealStarted = true;
+              logoOverlay.style.visibility = "visible";
+              logoOverlay.style.opacity = "1";
+              logoOverlay.style.pointerEvents = "none";
+            }
+            showEnterButton();
+          }, ms);
+        }
+
+        function showEnterButton() {
+          stage.classList.add("stage--ready");
+          animationPhase = "done";
+          canvas.style.pointerEvents = "none";
+          logoOverlay.style.pointerEvents = "none";
+          enterBtn.classList.add("visible");
+          enterBtn.style.pointerEvents = "auto";
+          enterBtn.style.zIndex = "50";
+          enterBtn.onclick = goToSite;
+          clearEnterFallback();
+        }
+
         function revealLogo() {
           if (logoRevealStarted) return;
           logoRevealStarted = true;
           logoOverlay.style.visibility = "visible";
+          logoOverlay.style.pointerEvents = "none";
           if (typeof gsap !== "undefined") {
             gsap.to(logoOverlay, {
               opacity: 1,
@@ -460,9 +508,7 @@
                 particles = particles.filter(function (p) {
                   return p.phase !== "text";
                 });
-                animationPhase = "done";
-                enterBtn.classList.add("visible");
-                enterBtn.onclick = goToSite;
+                showEnterButton();
               },
             });
           } else {
@@ -472,9 +518,7 @@
               particles = particles.filter(function (p) {
                 return p.phase !== "text";
               });
-              animationPhase = "done";
-              enterBtn.classList.add("visible");
-              enterBtn.onclick = goToSite;
+              showEnterButton();
             }, 900);
           }
         }
@@ -528,14 +572,16 @@
             const textParticles = particles.filter(function (p) {
               return p.phase === "text";
             });
-            const settledRatio =
-              textParticles.length === 0
-                ? 0
-                : textParticles.filter(function (p) {
-                    return p.settled;
-                  }).length / textParticles.length;
-            if (settledRatio > 0.82) {
+            if (textParticles.length === 0) {
               revealLogo();
+            } else {
+              const settledRatio =
+                textParticles.filter(function (p) {
+                  return p.settled;
+                }).length / textParticles.length;
+              if (settledRatio > 0.82) {
+                revealLogo();
+              }
             }
           }
           requestAnimationFrame(drawParticles);
@@ -619,6 +665,8 @@
         }
 
         function startTimeline() {
+          scheduleEnterFallback(8000);
+
           if (logoSource.complete && logoSource.naturalWidth) {
             try {
               sampleLogoPixels(logoSource);
@@ -714,7 +762,7 @@
               });
               spawnLogoParticles();
             })
-            .to({}, { duration: 4 });
+            .to({}, { duration: 4, onComplete: revealLogo });
           } catch (err) {
             console.error("[intro] Erreur GSAP:", err);
             startTimelineFallback();
@@ -751,6 +799,7 @@
           } catch (err) {
             console.error("[intro] Boot échoué:", err);
             showBootError("Erreur au démarrage. Ouvrez la console (F12) pour le détail.");
+            scheduleEnterFallback(8000);
             startTimelineFallback();
           }
         }
