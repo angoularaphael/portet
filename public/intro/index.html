@@ -31,18 +31,18 @@
         inset: 0;
         z-index: 20;
         pointer-events: none;
-        transition: opacity 0.45s ease-out;
-      }
-
-      #canvas.is-hidden {
-        opacity: 0 !important;
-        visibility: hidden;
       }
 
       .gloves {
         position: absolute;
         inset: 0;
         z-index: 10;
+        pointer-events: none;
+      }
+
+      #stage.stage--ready .gloves,
+      #stage.stage--ready #canvas,
+      #stage.stage--ready #logo-overlay {
         pointer-events: none;
       }
 
@@ -57,6 +57,7 @@
         opacity: 0;
         visibility: hidden;
         transform: translate(-50%, -50%);
+        pointer-events: none;
       }
 
       #logo-overlay {
@@ -75,7 +76,7 @@
         width: min(88vw, 720px);
         height: auto;
         object-fit: contain;
-        filter: drop-shadow(0 0 40px rgba(245, 245, 242, 0.45));
+        filter: drop-shadow(0 0 32px rgba(245, 245, 242, 0.45));
       }
 
       #enter-btn {
@@ -83,7 +84,7 @@
         bottom: 3rem;
         left: 50%;
         transform: translateX(-50%);
-        z-index: 100;
+        z-index: 40;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
@@ -105,6 +106,7 @@
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
+        z-index: 50;
       }
     </style>
   </head>
@@ -193,6 +195,7 @@
           gloveLeftPng: "/intro/glove-left.png",
           gloveLeftSvg: "/intro/glove-left.svg",
           logoPng: "/intro/logo-boxing-center-white.png",
+          logoDarkPng: "/intro/logo-boxing-center.png",
           logoSvg: "/intro/logo-boxing-center.svg",
         };
 
@@ -280,6 +283,7 @@
         let particles = [];
         let logoPoints = [];
         let logoRevealStarted = false;
+        let enterFallbackTimer = null;
         let logoLayout = { x: 0, y: 0, w: 0, h: 0 };
 
         const logoImg = document.getElementById("logo-img");
@@ -381,11 +385,9 @@
               const a = imageData.data[i + 3];
               if (a < 80) continue;
               if (r < 12 && g < 12 && b < 12) continue;
-              points.push({
-                x: x,
-                y: y,
-                color: Math.random() > 0.28 ? WHITE : GOLD,
-              });
+              var lum = (r + g + b) / 3;
+              if (lum < 90) continue;
+              points.push({ x, y, color: "rgb(" + r + "," + g + "," + b + ")" });
             }
           }
           logoPoints = points;
@@ -436,6 +438,7 @@
             sampleLogoPixels(logoSource);
           }
           if (!logoPoints.length) {
+            console.warn("[intro] Aucun pixel logo — passage direct au bouton.");
             revealLogo();
             return;
           }
@@ -461,24 +464,51 @@
           });
         }
 
-        function hideCanvasLayer() {
-          particles = [];
-          ctx.clearRect(0, 0, width, height);
-          canvas.classList.add("is-hidden");
-          canvas.style.pointerEvents = "none";
+        function clearEnterFallback() {
+          if (enterFallbackTimer !== null) {
+            clearTimeout(enterFallbackTimer);
+            enterFallbackTimer = null;
+          }
+        }
+
+        function scheduleEnterFallback(ms) {
+          clearEnterFallback();
+          enterFallbackTimer = window.setTimeout(function () {
+            console.warn("[intro] Délai dépassé — affichage du bouton (repli).");
+            ctx.clearRect(0, 0, width, height);
+            canvas.style.opacity = "0";
+            if (!logoRevealStarted) {
+              logoRevealStarted = true;
+              setImgSrc(logoImg, ASSETS.logoPng, ASSETS.logoSvg);
+              logoOverlay.style.visibility = "visible";
+              logoOverlay.style.opacity = "1";
+              logoOverlay.style.pointerEvents = "none";
+            }
+            showEnterButton();
+          }, ms);
         }
 
         function showEnterButton() {
+          stage.classList.add("stage--ready");
           animationPhase = "done";
+          canvas.style.pointerEvents = "none";
+          logoOverlay.style.pointerEvents = "none";
           enterBtn.classList.add("visible");
           enterBtn.style.pointerEvents = "auto";
+          enterBtn.style.zIndex = "50";
           enterBtn.onclick = goToSite;
+          clearEnterFallback();
         }
 
         function revealLogo() {
           if (logoRevealStarted) return;
           logoRevealStarted = true;
-          hideCanvasLayer();
+          particles = particles.filter(function (p) {
+            return p.phase === "spark";
+          });
+          ctx.clearRect(0, 0, width, height);
+          canvas.style.opacity = "0";
+          setImgSrc(logoImg, ASSETS.logoPng, ASSETS.logoSvg);
           logoOverlay.style.visibility = "visible";
           logoOverlay.style.pointerEvents = "none";
           if (typeof gsap !== "undefined") {
@@ -486,17 +516,26 @@
               opacity: 1,
               duration: 0.9,
               ease: "power2.out",
-              onComplete: showEnterButton,
+              onComplete: function () {
+                particles = particles.filter(function (p) {
+                  return p.phase !== "text";
+                });
+                showEnterButton();
+              },
             });
           } else {
             logoOverlay.style.transition = "opacity 0.9s ease-out";
             logoOverlay.style.opacity = "1";
-            setTimeout(showEnterButton, 900);
+            setTimeout(function () {
+              particles = particles.filter(function (p) {
+                return p.phase !== "text";
+              });
+              showEnterButton();
+            }, 900);
           }
         }
 
         function drawParticles() {
-          if (animationPhase === "done") return;
           ctx.clearRect(0, 0, width, height);
           for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
@@ -545,14 +584,16 @@
             const textParticles = particles.filter(function (p) {
               return p.phase === "text";
             });
-            const settledRatio =
-              textParticles.length === 0
-                ? 1
-                : textParticles.filter(function (p) {
-                    return p.settled;
-                  }).length / textParticles.length;
-            if (textParticles.length === 0 || settledRatio > 0.82) {
+            if (textParticles.length === 0) {
               revealLogo();
+            } else {
+              const settledRatio =
+                textParticles.filter(function (p) {
+                  return p.settled;
+                }).length / textParticles.length;
+              if (settledRatio > 0.82) {
+                revealLogo();
+              }
             }
           }
           requestAnimationFrame(drawParticles);
@@ -636,6 +677,8 @@
         }
 
         function startTimeline() {
+          scheduleEnterFallback(8000);
+
           if (logoSource.complete && logoSource.naturalWidth) {
             try {
               sampleLogoPixels(logoSource);
@@ -753,7 +796,11 @@
               }),
             ]);
 
-            assetsReady
+            var timelineReady = new Promise(function (resolve) {
+              setTimeout(resolve, 2500);
+            });
+
+            Promise.race([assetsReady, timelineReady])
               .then(function () {
                 startTimeline();
               })
@@ -761,16 +808,10 @@
                 console.error("[intro] Chargement assets:", err);
                 startTimeline();
               });
-
-            setTimeout(function () {
-              if (!logoRevealStarted && animationPhase !== "done") {
-                console.warn("[intro] Repli — affichage direct du logo et du bouton.");
-                revealLogo();
-              }
-            }, 10000);
           } catch (err) {
             console.error("[intro] Boot échoué:", err);
             showBootError("Erreur au démarrage. Ouvrez la console (F12) pour le détail.");
+            scheduleEnterFallback(8000);
             startTimelineFallback();
           }
         }
